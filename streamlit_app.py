@@ -21,6 +21,9 @@ from reportlab.pdfgen.canvas import Canvas
 
 LOGGER = get_logger(__name__)
 
+PDF_LAYOUT_OPTION1 = 1
+PDF_LAYOUT_OPTION2 = 2
+
 def create_annotated_pdf(text: str, pagesize, rotate_angle):
 #   page_to_merge = [0, 1, 4] #Refers to the First page of PDF 
     xcoor = pagesize[0] - 40 #To be changed according to your pdf
@@ -29,7 +32,7 @@ def create_annotated_pdf(text: str, pagesize, rotate_angle):
     ycoor = float(pagesize[1]) - ycoor
     packet = io.BytesIO()
     c = Canvas(packet,pagesize=pagesize)
-    #   c.setFillColorRGB(1,0,0) #choose your font colour
+    c.setFillColorRGB(0,0,0) #choose your font colour
     c.setFont("Helvetica", 15) #choose your font type and font size
     c.drawRightString(xcoor, ycoor, text)
     c.save()
@@ -43,7 +46,7 @@ def create_annotated_pdf(text: str, pagesize, rotate_angle):
     return overlay_pdf
 
 
-def annotate_pdf_file(pdf_source, names: list):
+def annotate_pdf_file(pdf_source, names: list, option: int):
     input_pdf = PdfReader(pdf_source)
     page_count = len(input_pdf.pages)
     inputpdf_page_to_be_merged = input_pdf.pages[0]
@@ -52,13 +55,43 @@ def annotate_pdf_file(pdf_source, names: list):
     pdf_sources = {n: PdfReader(pdf_source) for n in names}
 
     output = PdfWriter()
-    for PAGE in range(page_count):
+    def pdf_option_1():
+        for PAGE in range(page_count):
+            for n in names:
+                source_pdf = pdf_sources[n]
+                overlay = annotations[n]
+                source_page = source_pdf.pages[PAGE]
+                source_page.merge_page(overlay.pages[0])
+                output.add_page(source_page)
+
+    def pdf_option_2():
+        """
+        name 1 - page 1
+        name 1 - page 2
+        name 1 - page 3
+        name 1 - blank page
+        name 2 - page 1
+        name 2 - page 2
+        name 2 - page 3
+        name 2 - blank page
+        """
         for n in names:
-            source_pdf = pdf_sources[n]
-            overlay = annotations[n]
-            source_page = source_pdf.pages[PAGE]
-            source_page.merge_page(overlay.pages[0])
-            output.add_page(source_page)
+            for PAGE in range(page_count):
+                source_pdf = pdf_sources[n]
+                overlay = annotations[n]
+                source_page = source_pdf.pages[PAGE]
+                source_page.merge_page(overlay.pages[0])
+                output.add_page(source_page)
+            if page_count % 2 == 1:
+                # add blank page
+                output.add_blank_page()
+
+    if option == PDF_LAYOUT_OPTION1:
+        pdf_option_1()
+    elif option == PDF_LAYOUT_OPTION2:
+        pdf_option_2()
+    else:
+        raise Exception('Invalid option')
 
     outputStream = io.BytesIO()
     output.write(outputStream)
@@ -83,6 +116,14 @@ def run():
     with st.form('upload_form'):
         uploaded_pdf = st.file_uploader(label='Upload PDF file', accept_multiple_files=False, type='pdf')
         names = st.text_area(label='Nhập tên cần dán lên file PDF. Mỗi dòng cho 1 tên', placeholder='Kitty\nMicky')
+        options = st.radio('Lựa chọn cách sắp xếp thứ tự các trang PDF', 
+                           [
+                               {'label': 'Gán lần lượt tên cho từng trang PDF *(phù hợp in và chia bài tập theo ngày)*', 'value': PDF_LAYOUT_OPTION1},
+                               {'label': 'Gán tên cho toàn bộ các trang PDF *(phù hợp để in 2 mặt cho từng bạn)*', 'value': PDF_LAYOUT_OPTION2},
+                            ],
+                            format_func=lambda x: x['label']
+                    )
+        option = options['value']
         submitted =st.form_submit_button('Submit')
         if submitted:
             if uploaded_pdf is None:
@@ -92,7 +133,7 @@ def run():
                 st.write('Must input names')
                 return
             name_list = names.splitlines()
-            pdf_data = annotate_pdf_file(uploaded_pdf, name_list)
+            pdf_data = annotate_pdf_file(uploaded_pdf, name_list, option)
 
     if pdf_data:
         st.write('Bấm nút download phía dưới để download kết quả')
