@@ -27,7 +27,7 @@ PDF_LAYOUT_OPTION2 = 2
 def create_annotated_pdf(text: str, pagesize, rotate_angle):
 #   page_to_merge = [0, 1, 4] #Refers to the First page of PDF 
     xcoor = pagesize[0] - 40 #To be changed according to your pdf
-    ycoor = 40 #To be changed according to your pdf
+    ycoor = 30 #To be changed according to your pdf
 
     ycoor = float(pagesize[1]) - ycoor
     packet = io.BytesIO()
