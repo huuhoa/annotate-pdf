@@ -23,6 +23,7 @@ LOGGER = get_logger(__name__)
 
 PDF_LAYOUT_OPTION1 = 1
 PDF_LAYOUT_OPTION2 = 2
+PDF_LAYOUT_OPTION3 = 3
 
 def create_annotated_pdf(text: str, pagesize, rotate_angle):
 #   page_to_merge = [0, 1, 4] #Refers to the First page of PDF 
@@ -46,7 +47,7 @@ def create_annotated_pdf(text: str, pagesize, rotate_angle):
     return overlay_pdf
 
 
-def annotate_pdf_file(pdf_source, names: list, option: int):
+def annotate_pdf_file(pdf_source, names: list, option: int, **kwargs):
     input_pdf = PdfReader(pdf_source)
     page_count = len(input_pdf.pages)
     inputpdf_page_to_be_merged = input_pdf.pages[0]
@@ -86,10 +87,35 @@ def annotate_pdf_file(pdf_source, names: list, option: int):
                 # add blank page
                 output.add_blank_page()
 
+    def pdf_option_3(page_per_batch: int):
+        """
+        name 1 - page 1
+        name 1 - page 2
+        name 2 - page 1
+        name 2 - page 2
+        name 1 - page 3
+        name 1 - page 4
+        name 2 - page 3
+        name 2 - page 4
+        """
+        for batch in range(0, page_count, page_per_batch):
+            for n in names:
+                for PAGE in range(batch, min(batch + page_per_batch, page_count)):
+                    source_pdf = pdf_sources[n]
+                    overlay = annotations[n]
+                    source_page = source_pdf.pages[PAGE]
+                    source_page.merge_page(overlay.pages[0])
+                    output.add_page(source_page)
+                if page_per_batch % 2 == 1 and page_per_batch > 1:
+                    # add blank page
+                    output.add_blank_page()
+
     if option == PDF_LAYOUT_OPTION1:
         pdf_option_1()
     elif option == PDF_LAYOUT_OPTION2:
         pdf_option_2()
+    elif option == PDF_LAYOUT_OPTION3:
+        pdf_option_3(kwargs['page_per_batch'])
     else:
         raise Exception('Invalid option')
 
@@ -113,17 +139,23 @@ def run():
     )
 
     pdf_data = None
+    options = st.radio('Lựa chọn cách sắp xếp thứ tự các trang PDF', 
+                        [
+                            {'label': '**Cách 1**: Gán lần lượt tên cho từng trang PDF *(phù hợp in và chia bài tập theo ngày)*', 'value': PDF_LAYOUT_OPTION1},
+                            {'label': '**Cách 2**: Gán tên cho toàn bộ các trang PDF *(phù hợp để in 2 mặt cho từng bạn)*', 'value': PDF_LAYOUT_OPTION2},
+                            {'label': '**Cách 3**: Gán tên cho một số trang PDF *(phù hợp để in 2 mặt cho từng bạn theo ngày)*', 'value': PDF_LAYOUT_OPTION3},
+                        ],
+                        format_func=lambda x: x['label']
+                )
+    option = options['value']
+    kwargs = {}
+    if option == PDF_LAYOUT_OPTION3:
+        st.write('**Cách 3**: Số trang mỗi batch. Mặc định là 2. Cần đảm bảo số trang không lớn hơn số trang của file PDF')
+        page_per_batch = st.number_input('Số trang mỗi batch', min_value=1, max_value=100, value=2)
+        kwargs['page_per_batch'] = page_per_batch
     with st.form('upload_form'):
         uploaded_pdf = st.file_uploader(label='Upload PDF file', accept_multiple_files=False, type='pdf')
         names = st.text_area(label='Nhập tên cần dán lên file PDF. Mỗi dòng cho 1 tên', placeholder='Kitty\nMicky')
-        options = st.radio('Lựa chọn cách sắp xếp thứ tự các trang PDF', 
-                           [
-                               {'label': 'Gán lần lượt tên cho từng trang PDF *(phù hợp in và chia bài tập theo ngày)*', 'value': PDF_LAYOUT_OPTION1},
-                               {'label': 'Gán tên cho toàn bộ các trang PDF *(phù hợp để in 2 mặt cho từng bạn)*', 'value': PDF_LAYOUT_OPTION2},
-                            ],
-                            format_func=lambda x: x['label']
-                    )
-        option = options['value']
         submitted =st.form_submit_button('Submit')
         if submitted:
             if uploaded_pdf is None:
@@ -133,7 +165,7 @@ def run():
                 st.write('Must input names')
                 return
             name_list = names.splitlines()
-            pdf_data = annotate_pdf_file(uploaded_pdf, name_list, option)
+            pdf_data = annotate_pdf_file(uploaded_pdf, name_list, option, **kwargs)
 
     if pdf_data:
         st.write('Bấm nút download phía dưới để download kết quả')
