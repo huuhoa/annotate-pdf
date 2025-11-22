@@ -1,7 +1,6 @@
-altair
 numpy
 pandas
 pydeck
-streamlit
+streamlit==1.51.0
 pypdf
 reportlab
